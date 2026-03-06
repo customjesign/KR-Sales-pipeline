@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sales Pipeline</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#0a0d14; --surface:#111520; --surface2:#161c2e;
+  --border:rgba(255,255,255,0.07); --text:#e8ecf4; --muted:#6b7280;
+  --c1:#ff4d6d; --c2:#f97316; --c3:#eab308; --c4:#22c55e; --c5:#8b5cf6;
+}
+body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; min-height:100vh; overflow-x:hidden; }
+body::before { content:''; position:fixed; inset:0; background-image:linear-gradient(rgba(255,255,255,0.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.022) 1px,transparent 1px); background-size:48px 48px; pointer-events:none; z-index:0; }
+
+/* NAV */
+.nav { position:sticky; top:0; z-index:100; background:rgba(10,13,20,0.92); backdrop-filter:blur(12px); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 28px; height:56px; gap:16px; }
+.nav-brand { font-family:'Syne',sans-serif; font-size:14px; font-weight:800; letter-spacing:0.05em; white-space:nowrap; }
+.nav-tabs { display:flex; gap:4px; }
+.nav-tab { font-family:'Syne',sans-serif; font-size:11px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; padding:6px 14px; border-radius:8px; border:none; background:transparent; color:var(--muted); cursor:pointer; transition:background 0.2s,color 0.2s; white-space:nowrap; }
+.nav-tab:hover { background:rgba(255,255,255,0.05); color:var(--text); }
+.nav-tab.active { background:var(--surface2); color:var(--text); }
+.nav-right { display:flex; align-items:center; gap:8px; }
+.sync-dot { width:7px; height:7px; border-radius:50%; background:#6b7280; flex-shrink:0; transition:background 0.3s; }
+.sync-dot.syncing { background:#eab308; animation:pulse-dot 1s infinite; }
+.sync-dot.synced { background:#22c55e; }
+.sync-dot.error { background:#ef4444; }
+@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.sync-label { font-size:10px; color:var(--muted); white-space:nowrap; }
+.user-badge { font-family:'Syne',sans-serif; font-size:11px; font-weight:700; padding:5px 14px; border-radius:20px; border:1px solid var(--border); background:var(--surface2); color:var(--text); cursor:pointer; white-space:nowrap; transition:border-color 0.2s; }
+.user-badge:hover { border-color:rgba(255,255,255,0.2); }
+
+/* PAGES */
+.page { display:none; padding:44px 28px 80px; position:relative; z-index:1; animation:fadeUp 0.4s ease both; }
+.page.active { display:block; }
+
+/* COMMON */
+.page-header { text-align:center; margin-bottom:48px; }
+.page-header .label { font-size:11px; letter-spacing:0.3em; text-transform:uppercase; color:var(--muted); margin-bottom:10px; }
+.page-header h2 { font-family:'Syne',sans-serif; font-size:clamp(20px,3vw,36px); font-weight:800; letter-spacing:-0.02em; background:linear-gradient(135deg,#fff 30%,rgba(255,255,255,0.4)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+
+/* PIPELINE */
+.pipeline-outer { overflow-x:auto; padding-bottom:8px; }
+.pipeline-inner { display:flex; align-items:flex-start; min-width:820px; position:relative; }
+.h-line { position:absolute; top:45px; left:45px; right:45px; height:2px; z-index:0; background:linear-gradient(90deg,#e8ecf4 0%,#ff4d6d 16.6%,#f97316 33.3%,#eab308 50%,#22c55e 66.6%,#8b5cf6 100%); opacity:0.45; border-radius:2px; }
+.h-arrow { position:absolute; top:45px; transform:translateY(-50%); width:0; height:0; border-top:5px solid transparent; border-bottom:5px solid transparent; z-index:1; opacity:0.7; }
+.stage-wrap { display:flex; flex-direction:column; align-items:center; position:relative; z-index:2; flex:1; padding:0 5px; }
+.stage-node { width:88px; height:88px; border-radius:50%; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; transition:transform 0.25s,box-shadow 0.25s; border:2px solid var(--color); background:color-mix(in srgb,var(--color) 13%,var(--surface)); position:relative; }
+.stage-node:hover { transform:translateY(-4px) scale(1.06); box-shadow:0 0 28px color-mix(in srgb,var(--color) 40%,transparent); }
+.stage-node.leads-node { background:var(--text); border:none; }
+.node-icon { font-size:20px; margin-bottom:3px; }
+.node-label { font-family:'Syne',sans-serif; font-size:9px; font-weight:700; letter-spacing:0.05em; text-align:center; color:var(--text); text-transform:uppercase; line-height:1.25; padding:0 5px; }
+.leads-node .node-label { color:#0a0d14; }
+.stage-num { position:absolute; top:-7px; right:-7px; width:20px; height:20px; border-radius:50%; background:var(--color); color:#000; font-family:'Syne',sans-serif; font-size:9px; font-weight:800; display:flex; align-items:center; justify-content:center; z-index:3; }
+.v-connector { width:2px; height:14px; background:var(--color); opacity:0.35; border-radius:2px; margin-top:2px; flex-shrink:0; }
+.steps-panel { display:flex; flex-direction:column; gap:4px; width:100%; max-width:136px; }
+.step-item { background:var(--surface); border:1px solid var(--border); border-left:2.5px solid var(--color); border-radius:7px; padding:6px 8px 6px 12px; font-size:10px; line-height:1.45; color:#cbd5e1; position:relative; }
+.step-item::before { content:''; position:absolute; top:50%; left:-6px; width:4px; height:4px; border-radius:50%; background:var(--color); transform:translateY(-50%); box-shadow:0 0 5px var(--color); }
+.step-item.win { border-left-color:#22c55e; } .step-item.win::before { background:#22c55e; }
+.step-item.lost { border-left-color:#ef4444; } .step-item.lost::before { background:#ef4444; }
+
+/* MODAL */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.75); backdrop-filter:blur(6px); z-index:200; display:flex; align-items:center; justify-content:center; }
+.modal-overlay.hidden { display:none; }
+.modal { background:var(--surface2); border:1px solid rgba(255,255,255,0.12); border-radius:20px; padding:32px; width:340px; max-width:90vw; }
+.modal h3 { font-family:'Syne',sans-serif; font-size:17px; font-weight:800; margin-bottom:6px; }
+.modal p { font-size:12px; color:var(--muted); margin-bottom:20px; line-height:1.6; }
+.member-list { display:flex; flex-direction:column; gap:7px; margin-bottom:16px; max-height:240px; overflow-y:auto; }
+.member-btn { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 14px; color:var(--text); font-family:'Syne',sans-serif; font-size:12px; font-weight:700; cursor:pointer; text-align:left; transition:border-color 0.2s,background 0.2s; display:flex; align-items:center; gap:10px; }
+.member-btn:hover { border-color:rgba(255,255,255,0.3); background:rgba(255,255,255,0.05); }
+.member-btn.selected { border-color:var(--c4); }
+.member-btn .avatar { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; background:rgba(255,255,255,0.08); flex-shrink:0; }
+.modal-divider { text-align:center; color:var(--muted); font-size:10px; letter-spacing:0.1em; margin:12px 0; }
+.new-member-row { display:flex; gap:8px; }
+.new-member-row input { flex:1; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:8px; padding:9px 12px; color:var(--text); font-size:13px; outline:none; }
+.new-member-row input:focus { border-color:rgba(255,255,255,0.3); }
+.btn-add { background:var(--c5); border:none; border-radius:8px; color:#fff; font-family:'Syne',sans-serif; font-size:11px; font-weight:700; padding:0 14px; cursor:pointer; }
+
+/* PAGE 2 */
+.month-nav { display:flex; align-items:center; justify-content:center; gap:16px; margin-bottom:32px; }
+.month-nav button { background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text); padding:6px 14px; cursor:pointer; font-size:16px; transition:background 0.2s; }
+.month-nav button:hover { background:rgba(255,255,255,0.08); }
+.month-label { font-family:'Syne',sans-serif; font-size:17px; font-weight:800; min-width:130px; text-align:center; }
+.input-grid { display:flex; flex-wrap:wrap; gap:11px; justify-content:center; max-width:860px; margin:0 auto 14px; }
+.input-card { background:var(--surface2); border:1px solid var(--border); border-top:2px solid var(--color); border-radius:12px; padding:13px 16px; display:flex; flex-direction:column; gap:6px; min-width:110px; flex:1; max-width:135px; }
+.input-card-label { font-family:'Syne',sans-serif; font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--color); }
+.input-card input { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:var(--text); font-family:'Syne',sans-serif; font-size:22px; font-weight:800; text-align:center; padding:8px 4px; width:100%; outline:none; transition:border-color 0.2s,box-shadow 0.2s; -moz-appearance:textfield; }
+.input-card input::-webkit-outer-spin-button, .input-card input::-webkit-inner-spin-button { -webkit-appearance:none; }
+.input-card input:focus { border-color:var(--color); box-shadow:0 0 0 3px color-mix(in srgb,var(--color) 20%,transparent); }
+.input-hint { font-size:10px; color:var(--muted); text-align:center; }
+.save-btn { display:block; margin:18px auto 0; background:linear-gradient(135deg,var(--c4),#16a34a); border:none; border-radius:10px; color:#000; font-family:'Syne',sans-serif; font-size:12px; font-weight:800; letter-spacing:0.08em; padding:11px 32px; cursor:pointer; transition:opacity 0.2s,transform 0.2s; }
+.save-btn:hover { opacity:0.9; transform:translateY(-1px); }
+.save-confirm { text-align:center; font-size:12px; color:var(--c4); margin-top:8px; height:18px; transition:opacity 0.5s; }
+
+.history-section { max-width:860px; margin:44px auto 0; }
+.section-title { font-family:'Syne',sans-serif; font-size:11px; font-weight:700; letter-spacing:0.15em; text-transform:uppercase; color:var(--muted); margin-bottom:16px; }
+.history-table { width:100%; border-collapse:collapse; font-size:12px; }
+.history-table th { font-family:'Syne',sans-serif; font-size:10px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted); padding:8px 10px; text-align:right; border-bottom:1px solid var(--border); }
+.history-table th:first-child { text-align:left; }
+.history-table td { padding:9px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.04); color:#cbd5e1; }
+.history-table td:first-child { text-align:left; font-family:'Syne',sans-serif; font-weight:700; font-size:11px; color:var(--text); }
+.history-table tr:hover td { background:rgba(255,255,255,0.02); }
+.pct-cell { color:var(--muted); font-size:11px; }
+.total-row td { border-top:1px solid rgba(255,255,255,0.15) !important; font-weight:700; }
+
+/* PAGE 3 */
+.filter-bar { display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:28px; flex-wrap:wrap; }
+.filter-btn { background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--muted); font-family:'Syne',sans-serif; font-size:11px; font-weight:700; padding:6px 13px; cursor:pointer; transition:all 0.2s; }
+.filter-btn:hover, .filter-btn.active { background:rgba(255,255,255,0.08); color:var(--text); border-color:rgba(255,255,255,0.2); }
+
+.funnel-wrap { max-width:680px; margin:0 auto; }
+.funnel-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.funnel-header-title { font-family:'Syne',sans-serif; font-size:11px; font-weight:700; letter-spacing:0.15em; text-transform:uppercase; color:var(--muted); }
+.warn-badge { display:inline-flex; align-items:center; gap:6px; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); border-radius:20px; padding:4px 12px; font-size:11px; font-family:'Syne',sans-serif; font-weight:700; color:#f87171; }
+
+.funnel-bars { display:flex; flex-direction:column; gap:12px; }
+.funnel-row { display:flex; align-items:center; gap:12px; }
+.funnel-row-label { font-size:10px; font-family:'Syne',sans-serif; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; width:96px; text-align:right; flex-shrink:0; }
+.funnel-bar-track { flex:1; height:10px; background:rgba(255,255,255,0.05); border-radius:5px; overflow:hidden; }
+.funnel-bar-fill { height:100%; border-radius:5px; background:var(--color); transition:width 0.7s cubic-bezier(0.22,1,0.36,1); position:relative; }
+.funnel-bar-fill::after { content:''; position:absolute; inset:0; background:linear-gradient(90deg,transparent 60%,rgba(255,255,255,0.12)); }
+.funnel-bar-fill.highlight { outline:2px solid #ef4444; outline-offset:2px; animation:pulse-bar 1.8s ease-in-out infinite; }
+@keyframes pulse-bar { 0%,100%{opacity:1} 50%{opacity:0.55} }
+.funnel-meta { width:90px; flex-shrink:0; }
+.funnel-count { font-size:13px; font-family:'Syne',sans-serif; font-weight:800; color:var(--color); }
+.funnel-pct-lbl { font-size:10px; color:var(--muted); }
+
+.kpi-row { display:flex; justify-content:center; gap:14px; margin-top:36px; flex-wrap:wrap; }
+.kpi-card { background:var(--surface2); border:1px solid var(--border); border-radius:14px; padding:16px 22px; text-align:center; position:relative; overflow:hidden; min-width:140px; }
+.kpi-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,var(--c3),var(--c5)); }
+.kpi-label { font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
+.kpi-value { font-family:'Syne',sans-serif; font-size:24px; font-weight:800; background:linear-gradient(135deg,var(--c3),var(--c5)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.kpi-sub { font-size:10px; color:var(--muted); margin-top:4px; }
+
+.member-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; max-width:900px; margin:40px auto 0; }
+.member-card { background:var(--surface2); border:1px solid var(--border); border-radius:14px; padding:18px 20px; }
+.mc-header { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+.mc-avatar { width:34px; height:34px; border-radius:50%; background:rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+.mc-name { font-family:'Syne',sans-serif; font-size:13px; font-weight:800; }
+.mc-total { font-size:11px; color:var(--muted); }
+.mc-bars { display:flex; flex-direction:column; gap:6px; }
+.mc-bar-row { display:flex; align-items:center; gap:8px; }
+.mc-bar-label { font-size:10px; color:var(--muted); width:64px; text-align:right; flex-shrink:0; }
+.mc-bar-track { flex:1; height:5px; background:rgba(255,255,255,0.05); border-radius:3px; overflow:hidden; }
+.mc-bar-fill { height:100%; border-radius:3px; background:var(--color); transition:width 0.6s ease; }
+.mc-bar-val { font-size:10px; font-family:'Syne',sans-serif; font-weight:700; color:var(--color); width:28px; text-align:right; }
+
+.empty-state { text-align:center; padding:60px 20px; color:var(--muted); }
+.empty-state .emoji { font-size:48px; margin-bottom:12px; }
+.empty-state p { font-size:13px; line-height:1.7; }
+
+@keyframes fadeUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-brand">🎯 Sales Pipeline</div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('p1',this)">📋 가이드</button>
+    <button class="nav-tab" onclick="showPage('p2',this)">✏️ 데이터 입력</button>
+    <button class="nav-tab" onclick="showPage('p3',this)">📊 팀 통계</button>
+  </div>
+  <div class="nav-right">
+    <div class="sync-dot" id="sync-dot"></div>
+    <span class="sync-label" id="sync-label">-</span>
+    <button class="user-badge" id="user-badge-btn" onclick="openModal()">👤 멤버 선택</button>
+  </div>
+</nav>
+
+<!-- MODAL -->
+<div class="modal-overlay hidden" id="modal-overlay" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <h3>👋 누구세요?</h3>
+    <p>이름을 선택해 본인 데이터를 입력하세요.<br>데이터는 팀 전체에 실시간 공유돼요.</p>
+    <div class="member-list" id="member-list"></div>
+    <div class="modal-divider">— 새 멤버 추가 —</div>
+    <div class="new-member-row">
+      <input type="text" id="new-member-input" placeholder="이름 입력" onkeydown="if(event.key==='Enter')addMember()">
+      <button class="btn-add" onclick="addMember()">추가</button>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 1: GUIDE -->
+<div class="page active" id="p1">
+  <div class="page-header">
+    <div class="label">Customer Journey</div>
+    <h2>Sales Pipeline 가이드</h2>
+  </div>
+  <div class="pipeline-outer">
+    <div class="pipeline-inner" id="pipeline-guide">
+      <div class="h-line"></div>
+      <div class="h-arrow" style="left:calc(16.6% - 4px);border-left:8px solid #ff4d6d;"></div>
+      <div class="h-arrow" style="left:calc(33.3% - 4px);border-left:8px solid #f97316;"></div>
+      <div class="h-arrow" style="left:calc(50% - 4px);border-left:8px solid #eab308;"></div>
+      <div class="h-arrow" style="left:calc(66.6% - 4px);border-left:8px solid #22c55e;"></div>
+      <div class="h-arrow" style="left:calc(83.3% - 4px);border-left:8px solid #8b5cf6;"></div>
+      <!-- Leads -->
+      <div class="stage-wrap"><div class="stage-node leads-node"><div class="node-icon">🎯</div><div class="node-label" style="color:#0a0d14">Leads</div></div></div>
+      <!-- MQL -->
+      <div class="stage-wrap" style="--color:var(--c1)">
+        <div class="stage-node" style="--color:var(--c1)"><div class="stage-num" style="background:var(--c1)">1</div><div class="node-icon">🔍</div><div class="node-label">MQL</div></div>
+        <div class="v-connector" style="--color:var(--c1)"></div>
+        <div class="steps-panel">
+          <div class="step-item" style="--color:var(--c1)">BD가 적합한 리드인지 확인</div>
+          <div class="step-item" style="--color:var(--c1)">리드 조사 및 연락 시도</div>
+          <div class="step-item" style="--color:var(--c1)">상태 → Follow-up 전환</div>
+        </div>
+      </div>
+      <!-- Connected -->
+      <div class="stage-wrap" style="--color:var(--c2)">
+        <div class="stage-node" style="--color:var(--c2)"><div class="stage-num" style="background:var(--c2)">2</div><div class="node-icon">🤝</div><div class="node-label">Connected</div></div>
+        <div class="v-connector" style="--color:var(--c2)"></div>
+        <div class="steps-panel">
+          <div class="step-item" style="--color:var(--c2)">리드 응답 수신</div>
+          <div class="step-item" style="--color:var(--c2)">상태 → Converted 전환</div>
+          <div class="step-item" style="--color:var(--c2)">Lead → Account 전환</div>
+          <div class="step-item" style="--color:var(--c2)">소통 시 니즈 최대한 파악</div>
+        </div>
+      </div>
+      <!-- Solution -->
+      <div class="stage-wrap" style="--color:var(--c3)">
+        <div class="stage-node" style="--color:var(--c3)"><div class="stage-num" style="background:var(--c3)">3</div><div class="node-icon">🎬</div><div class="node-label">Solution &amp; Quotation</div></div>
+        <div class="v-connector" style="--color:var(--c3)"></div>
+        <div class="steps-panel">
+          <div class="step-item" style="--color:var(--c3)">데모 진행 (대면/비대면)</div>
+          <div class="step-item" style="--color:var(--c3)">맞춤형 제안서 즉시 전달</div>
+          <div class="step-item" style="--color:var(--c3)">대략적인 가격 안내</div>
+        </div>
+      </div>
+      <!-- Trial -->
+      <div class="stage-wrap" style="--color:var(--c4)">
+        <div class="stage-node" style="--color:var(--c4)"><div class="stage-num" style="background:var(--c4)">4</div><div class="node-icon">🧪</div><div class="node-label">Trial</div></div>
+        <div class="v-connector" style="--color:var(--c4)"></div>
+        <div class="steps-panel">
+          <div class="step-item" style="--color:var(--c4)">고객 사용 모델 맞춤 교육</div>
+          <div class="step-item" style="--color:var(--c4)">사용도 및 불편사항 파악</div>
+          <div class="step-item" style="--color:var(--c4)">긍정적 사용 경험 유도</div>
+        </div>
+      </div>
+      <!-- Won/Lost -->
+      <div class="stage-wrap" style="--color:var(--c5)">
+        <div class="stage-node" style="--color:var(--c5)"><div class="stage-num" style="background:var(--c5)">5</div><div class="node-icon">🏁</div><div class="node-label">Won / Lost</div></div>
+        <div class="v-connector" style="--color:var(--c5)"></div>
+        <div class="steps-panel">
+          <div class="step-item win">결제 완료 → Paid</div>
+          <div class="step-item lost">미결제 → Lost</div>
+          <div class="step-item" style="--color:var(--c5)">이탈 Reason 분석 필수</div>
+          <div class="step-item" style="--color:var(--c5)">단계별 전환율 분석</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 2: DATA ENTRY -->
+<div class="page" id="p2">
+  <div class="page-header">
+    <div class="label" id="p2-user-label">멤버를 먼저 선택해주세요</div>
+    <h2>월별 데이터 입력</h2>
+  </div>
+  <!-- compact pipeline -->
+  <div class="pipeline-outer" style="margin-bottom:36px">
+    <div class="pipeline-inner">
+      <div class="h-line"></div>
+      <div class="h-arrow" style="left:calc(16.6% - 4px);border-left:8px solid #ff4d6d;"></div>
+      <div class="h-arrow" style="left:calc(33.3% - 4px);border-left:8px solid #f97316;"></div>
+      <div class="h-arrow" style="left:calc(50% - 4px);border-left:8px solid #eab308;"></div>
+      <div class="h-arrow" style="left:calc(66.6% - 4px);border-left:8px solid #22c55e;"></div>
+      <div class="h-arrow" style="left:calc(83.3% - 4px);border-left:8px solid #8b5cf6;"></div>
+      <div class="stage-wrap"><div class="stage-node leads-node"><div class="node-icon">🎯</div><div class="node-label" style="color:#0a0d14">Leads</div></div></div>
+      <div class="stage-wrap" style="--color:var(--c1)"><div class="stage-node" style="--color:var(--c1)"><div class="stage-num" style="background:var(--c1)">1</div><div class="node-icon">🔍</div><div class="node-label">MQL</div></div></div>
+      <div class="stage-wrap" style="--color:var(--c2)"><div class="stage-node" style="--color:var(--c2)"><div class="stage-num" style="background:var(--c2)">2</div><div class="node-icon">🤝</div><div class="node-label">Connected</div></div></div>
+      <div class="stage-wrap" style="--color:var(--c3)"><div class="stage-node" style="--color:var(--c3)"><div class="stage-num" style="background:var(--c3)">3</div><div class="node-icon">🎬</div><div class="node-label">Solution</div></div></div>
+      <div class="stage-wrap" style="--color:var(--c4)"><div class="stage-node" style="--color:var(--c4)"><div class="stage-num" style="background:var(--c4)">4</div><div class="node-icon">🧪</div><div class="node-label">Trial</div></div></div>
+      <div class="stage-wrap" style="--color:var(--c5)"><div class="stage-node" style="--color:var(--c5)"><div class="stage-num" style="background:var(--c5)">5</div><div class="node-icon">🏁</div><div class="node-label">Won/Lost</div></div></div>
+    </div>
+  </div>
+  <div class="month-nav">
+    <button onclick="changeMonth(-1)">◀</button>
+    <div class="month-label" id="month-label"></div>
+    <button onclick="changeMonth(1)">▶</button>
+  </div>
+  <div class="input-grid">
+    <div class="input-card" style="--color:#e8ecf4"><div class="input-card-label">Leads</div><input type="number" id="in-leads" value="0" min="0"><div class="input-hint">총 리드 수</div></div>
+    <div class="input-card" style="--color:var(--c1)"><div class="input-card-label">MQL</div><input type="number" id="in-mql" value="0" min="0"><div class="input-hint">적합 리드 수</div></div>
+    <div class="input-card" style="--color:var(--c2)"><div class="input-card-label">Connected</div><input type="number" id="in-connected" value="0" min="0"><div class="input-hint">응답한 수</div></div>
+    <div class="input-card" style="--color:var(--c3)"><div class="input-card-label">Demo</div><input type="number" id="in-demo" value="0" min="0"><div class="input-hint">데모 진행 수</div></div>
+    <div class="input-card" style="--color:var(--c4)"><div class="input-card-label">Trial</div><input type="number" id="in-trial" value="0" min="0"><div class="input-hint">트라이얼 수</div></div>
+    <div class="input-card" style="--color:var(--c5)"><div class="input-card-label">Paid</div><input type="number" id="in-paid" value="0" min="0"><div class="input-hint">최종 결제 수</div></div>
+  </div>
+  <button class="save-btn" onclick="saveData()">☁️ 저장 & 팀 공유</button>
+  <div class="save-confirm" id="save-confirm"></div>
+  <div class="history-section">
+    <div class="section-title">📅 내 월별 히스토리</div>
+    <table class="history-table">
+      <thead><tr>
+        <th>월</th><th>Leads</th><th>MQL</th><th>Connected</th><th>Demo</th><th>Trial</th><th>Paid</th>
+        <th>Paid/Demo</th><th>Paid/Leads</th>
+      </tr></thead>
+      <tbody id="history-tbody"></tbody>
+      <tfoot id="history-tfoot"></tfoot>
+    </table>
+  </div>
+</div>
+
+<!-- PAGE 3: STATS -->
+<div class="page" id="p3">
+  <div class="page-header">
+    <div class="label">Team Analytics</div>
+    <h2>팀 전체 통계</h2>
+  </div>
+  <div class="filter-bar" id="filter-bar">
+    <button class="filter-btn active" onclick="setFilter('all',this)">📊 전체</button>
+  </div>
+  <div class="funnel-wrap">
+    <div class="funnel-header">
+      <span class="funnel-header-title">Conversion Funnel</span>
+      <span class="warn-badge" id="warn-badge" style="display:none">⚠️ 최대 누수 구간</span>
+    </div>
+    <div class="funnel-bars">
+      <div class="funnel-row"><div class="funnel-row-label" style="color:#e8ecf4">Leads</div><div class="funnel-bar-track"><div class="funnel-bar-fill" id="fb-leads" style="--color:#e8ecf4;width:100%"></div></div><div class="funnel-meta"><div class="funnel-count" id="fc-leads" style="--color:#e8ecf4">0</div><div class="funnel-pct-lbl" id="fp-leads">기준</div></div></div>
+      <div class="funnel-row"><div class="funnel-row-label" style="color:var(--c1)">MQL</div><div class="funnel-bar-track"><div class="funnel-bar-fill" id="fb-mql" style="--color:var(--c1);width:0"></div></div><div class="funnel-meta"><div class="funnel-count" id="fc-mql" style="--color:var(--c1)">0</div><div class="funnel-pct-lbl" id="fp-mql">-</div></div></div>
+      <div class="funnel-row"><div class="funnel-row-label" style="color:var(--c2)">Connected</div><div class="funnel-bar-track"><div class="funnel-bar-fill" id="fb-connected" style="--color:var(--c2);width:0"></div></div><div class="funnel-meta"><div class="funnel-count" id="fc-connected" style="--color:var(--c2)">0</div><div class="funnel-pct-lbl" id="fp-connected">-</div></div></div>
+      <div class="funnel-row"><div class="funnel-row-label" style="color:var(--c3)">Demo</div><div class="funnel-bar-track"><div class="funnel-bar-fill" id="fb-demo" style="--color:var(--c3);width:0"></div></div><div class="funnel-meta"><div class="funnel-count" id="fc-demo" style="--color:var(--c3)">0</div><div class="funnel-pct-lbl" id="fp-demo">-</div></div></div>
+      <div class="funnel-row"><div class="funnel-row-label" style="color:var(--c4)">Trial</div><div class="funnel-bar-track"><div class="funnel-bar-fill" id="fb-trial" style="--color:var(--c4);width:0"></div></div><div class="funnel-meta"><div class="funnel-count" id="fc-trial" style="--color:var(--c4)">0</div><div class="funnel-pct-lbl" id="fp-trial">-</div></div></div>
+      <div class="funnel-row"><div class="funnel-row-label" style="color:var(--c5)">Paid</div><div class="funnel-bar-track"><div class="funnel-bar-fill" id="fb-paid" style="--color:var(--c5);width:0"></div></div><div class="funnel-meta"><div class="funnel-count" id="fc-paid" style="--color:var(--c5)">0</div><div class="funnel-pct-lbl" id="fp-paid">-</div></div></div>
+    </div>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi-card"><div class="kpi-label">전환율 1 · Paid/Demo</div><div class="kpi-value" id="sk1">-</div><div class="kpi-sub" id="sk1s"></div></div>
+    <div class="kpi-card"><div class="kpi-label">전환율 2 · Paid/MQL</div><div class="kpi-value" id="sk2">-</div><div class="kpi-sub" id="sk2s"></div></div>
+    <div class="kpi-card"><div class="kpi-label">전체 전환율 · Paid/Leads</div><div class="kpi-value" id="sk3">-</div><div class="kpi-sub" id="sk3s"></div></div>
+  </div>
+  <div class="member-grid" id="member-grid"></div>
+</div>
+
+<script>
+// ── CONSTANTS ──
+const STAGES = ['leads','mql','connected','demo','trial','paid'];
+const COLORS  = {leads:'#e8ecf4',mql:'#ff4d6d',connected:'#f97316',demo:'#eab308',trial:'#22c55e',paid:'#8b5cf6'};
+const EMOJIS  = ['🦊','🐯','🦁','🐻','🐼','🦄','🐙','🦋','🌊','🔥'];
+const STORAGE_KEY = 'sp_team_data_v1';
+const MEMBERS_KEY = 'sp_members_v1';
+
+// ── STATE ──
+let teamData    = {};   // { memberName: { 'YYYY-MM': {leads,mql,...} } }
+let members     = [];   // [{name, emoji}]
+let currentUser = null;
+let currentMonth = new Date();
+let statsFilter = 'all';
+let syncInterval = null;
+
+// ── STORAGE HELPERS ──
+function setSyncing(state) {
+  const dot = document.getElementById('sync-dot');
+  const lbl = document.getElementById('sync-label');
+  dot.className = 'sync-dot ' + state;
+  if (state === 'syncing') lbl.textContent = '동기화 중…';
+  else if (state === 'synced') lbl.textContent = '동기화 완료';
+  else if (state === 'error') lbl.textContent = '오프라인';
+  else lbl.textContent = '-';
+}
+
+async function pushData() {
+  setSyncing('syncing');
+  try {
+    await window.storage.set(STORAGE_KEY, JSON.stringify(teamData), true);
+    await window.storage.set(MEMBERS_KEY, JSON.stringify(members), true);
+    setSyncing('synced');
+    setTimeout(() => setSyncing(''), 3000);
+  } catch(e) {
+    setSyncing('error');
+  }
+}
+
+async function pullData() {
+  try {
+    const [td, mb] = await Promise.all([
+      window.storage.get(STORAGE_KEY, true).catch(() => null),
+      window.storage.get(MEMBERS_KEY, true).catch(() => null),
+    ]);
+    let changed = false;
+    if (td) {
+      const parsed = JSON.parse(td.value);
+      if (JSON.stringify(parsed) !== JSON.stringify(teamData)) { teamData = parsed; changed = true; }
+    }
+    if (mb) {
+      const parsed = JSON.parse(mb.value);
+      if (JSON.stringify(parsed) !== JSON.stringify(members)) { members = parsed; changed = true; }
+    }
+    if (changed) {
+      renderMemberList();
+      refreshFilterBar();
+      refreshPage2();
+      if (document.getElementById('p3').classList.contains('active')) refreshPage3();
+      setSyncing('synced');
+      setTimeout(() => setSyncing(''), 2000);
+    }
+  } catch(e) {
+    setSyncing('error');
+  }
+}
+
+function startSync() {
+  pullData();
+  syncInterval = setInterval(pullData, 8000);
+}
+
+// ── NAVIGATION ──
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+  if (id === 'p2') refreshPage2();
+  if (id === 'p3') { refreshFilterBar(); refreshPage3(); }
+}
+
+// ── MODAL ──
+function openModal() {
+  renderMemberList();
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+function closeModalOutside(e) {
+  if (e.target === document.getElementById('modal-overlay')) closeModal();
+}
+function closeModal() {
+  document.getElementById('modal-overlay').classList.add('hidden');
+}
+
+function renderMemberList() {
+  const el = document.getElementById('member-list');
+  el.innerHTML = '';
+  if (!members.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:12px 0">아직 멤버가 없어요. 이름을 추가해주세요!</div>';
+    return;
+  }
+  members.forEach(m => {
+    const btn = document.createElement('button');
+    btn.className = 'member-btn' + (currentUser === m.name ? ' selected' : '');
+    btn.innerHTML = `<span class="avatar">${m.emoji}</span>${m.name}`;
+    btn.onclick = () => selectUser(m.name);
+    el.appendChild(btn);
+  });
+}
+
+function selectUser(name) {
+  currentUser = name;
+  const m = members.find(x => x.name === name);
+  document.getElementById('user-badge-btn').textContent = (m ? m.emoji+' ' : '') + name;
+  document.getElementById('p2-user-label').textContent = (m ? m.emoji+' ' : '') + name + '의 데이터';
+  closeModal();
+  refreshPage2();
+}
+
+async function addMember() {
+  const inp = document.getElementById('new-member-input');
+  const name = inp.value.trim();
+  if (!name || members.find(m => m.name === name)) { inp.value=''; return; }
+  const emoji = EMOJIS[members.length % EMOJIS.length];
+  members.push({name, emoji});
+  if (!teamData[name]) teamData[name] = {};
+  inp.value = '';
+  renderMemberList();
+  refreshFilterBar();
+  await pushData();
+}
+
+// ── MONTH HELPERS ──
+function monthKey(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
+function monthLabel(d) { return d.getFullYear() + '년 ' + (d.getMonth()+1) + '월'; }
+function changeMonth(dir) {
+  currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth()+dir, 1);
+  refreshPage2();
+}
+
+// ── PAGE 2 ──
+function refreshPage2() {
+  document.getElementById('month-label').textContent = monthLabel(currentMonth);
+  if (!currentUser) return;
+  const key = monthKey(currentMonth);
+  const d = ((teamData[currentUser] || {})[key]) || {};
+  STAGES.forEach(s => { const el = document.getElementById('in-'+s); if(el) el.value = d[s] || 0; });
+  renderHistory();
+}
+
+async function saveData() {
+  if (!currentUser) { alert('먼저 멤버를 선택해주세요!'); return; }
+  const key = monthKey(currentMonth);
+  if (!teamData[currentUser]) teamData[currentUser] = {};
+  const row = {};
+  STAGES.forEach(s => { row[s] = parseInt(document.getElementById('in-'+s).value)||0; });
+  teamData[currentUser][key] = row;
+  await pushData();
+  const el = document.getElementById('save-confirm');
+  el.textContent = '✅ 저장 완료! 팀에 공유됐어요.';
+  el.style.opacity = '1';
+  setTimeout(() => { el.style.opacity='0'; }, 2500);
+  renderHistory();
+}
+
+function renderHistory() {
+  if (!currentUser) return;
+  const ud = teamData[currentUser] || {};
+  const keys = Object.keys(ud).sort();
+  const tbody = document.getElementById('history-tbody');
+  tbody.innerHTML = '';
+  let totals = {leads:0,mql:0,connected:0,demo:0,trial:0,paid:0};
+  keys.forEach(k => {
+    const d = ud[k];
+    const [y,m] = k.split('-');
+    const r1 = d.demo>0 ? (d.paid/d.demo*100).toFixed(1)+'%' : '-';
+    const r2 = d.leads>0 ? (d.paid/d.leads*100).toFixed(1)+'%' : '-';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${y}년 ${parseInt(m)}월</td><td>${d.leads}</td><td>${d.mql}</td><td>${d.connected}</td><td>${d.demo}</td><td>${d.trial}</td><td>${d.paid}</td><td class="pct-cell">${r1}</td><td class="pct-cell">${r2}</td>`;
+    tbody.appendChild(tr);
+    STAGES.forEach(s => { totals[s] += (d[s]||0); });
+  });
+  const tfoot = document.getElementById('history-tfoot');
+  if (keys.length > 1) {
+    const r1 = totals.demo>0 ? (totals.paid/totals.demo*100).toFixed(1)+'%' : '-';
+    const r2 = totals.leads>0 ? (totals.paid/totals.leads*100).toFixed(1)+'%' : '-';
+    tfoot.innerHTML = `<tr class="total-row"><td>누적 합계</td><td>${totals.leads}</td><td style="color:var(--c1)">${totals.mql}</td><td style="color:var(--c2)">${totals.connected}</td><td style="color:var(--c3)">${totals.demo}</td><td style="color:var(--c4)">${totals.trial}</td><td style="color:var(--c5)">${totals.paid}</td><td class="pct-cell">${r1}</td><td class="pct-cell">${r2}</td></tr>`;
+  } else tfoot.innerHTML='';
+}
+
+// ── PAGE 3 ──
+function refreshFilterBar() {
+  const bar = document.getElementById('filter-bar');
+  bar.innerHTML = `<button class="filter-btn ${statsFilter==='all'?'active':''}" onclick="setFilter('all',this)">📊 전체</button>`;
+  members.forEach(m => {
+    const b = document.createElement('button');
+    b.className = 'filter-btn'+(statsFilter===m.name?' active':'');
+    b.textContent = m.emoji+' '+m.name;
+    b.onclick = () => setFilter(m.name, b);
+    bar.appendChild(b);
+  });
+}
+
+function setFilter(name, btn) {
+  statsFilter = name;
+  document.querySelectorAll('#filter-bar .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  refreshPage3();
+}
+
+function getAgg(memberName) {
+  const t = {leads:0,mql:0,connected:0,demo:0,trial:0,paid:0};
+  const names = memberName==='all' ? members.map(m=>m.name) : [memberName];
+  names.forEach(n => { Object.values(teamData[n]||{}).forEach(d => { STAGES.forEach(s => { t[s]+=(d[s]||0); }); }); });
+  return t;
+}
+
+function refreshPage3() {
+  const t = getAgg(statsFilter);
+  const base = t.leads || 1;
+  const vals = [t.leads, t.mql, t.connected, t.demo, t.trial, t.paid];
+  const ids  = ['leads','mql','connected','demo','trial','paid'];
+
+  // find biggest drop between adjacent stages
+  let maxDrop=0, maxIdx=-1;
+  for(let i=1;i<vals.length;i++){
+    const prev=vals[i-1]||0, curr=vals[i]||0;
+    const drop = prev>0 ? (prev-curr)/prev : 0;
+    if(drop>maxDrop){ maxDrop=drop; maxIdx=i; }
+  }
+
+  ids.forEach((id,i) => {
+    const pct = Math.min(vals[i]/base*100,100);
+    const bar = document.getElementById('fb-'+id);
+    bar.style.width = pct+'%';
+    bar.className = 'funnel-bar-fill' + (i===maxIdx?' highlight':'');
+    document.getElementById('fc-'+id).textContent = vals[i];
+    document.getElementById('fp-'+id).textContent = i===0?'기준':pct.toFixed(1)+'%';
+  });
+
+  const warnNames = ['MQL','Connected','Demo','Trial','Paid'];
+  const wb = document.getElementById('warn-badge');
+  if(maxIdx>0 && maxDrop>0.05){
+    wb.style.display='inline-flex';
+    wb.textContent = '⚠️ 최대 누수: '+warnNames[maxIdx-1]+' → '+warnNames[maxIdx]+' ('+( maxDrop*100).toFixed(1)+'% 이탈)';
+  } else wb.style.display='none';
+
+  const k1=t.demo>0?(t.paid/t.demo*100).toFixed(1)+'%':'-';
+  const k2=t.mql>0?(t.paid/t.mql*100).toFixed(1)+'%':'-';
+  const k3=t.leads>0?(t.paid/t.leads*100).toFixed(1)+'%':'-';
+  document.getElementById('sk1').textContent=k1; document.getElementById('sk1s').textContent=t.paid+' / '+t.demo;
+  document.getElementById('sk2').textContent=k2; document.getElementById('sk2s').textContent=t.paid+' / '+t.mql;
+  document.getElementById('sk3').textContent=k3; document.getElementById('sk3s').textContent=t.paid+' / '+t.leads;
+
+  // member cards
+  const grid = document.getElementById('member-grid');
+  if(!members.length){ grid.innerHTML='<div class="empty-state"><div class="emoji">👥</div><p>아직 멤버 데이터가 없어요.<br>멤버를 추가하고 데이터를 입력해보세요!</p></div>'; return; }
+  grid.innerHTML='';
+  members.forEach(m => {
+    const mt = getAgg(m.name);
+    const mb = mt.leads||1;
+    const totalPaid = mt.paid;
+    const card = document.createElement('div');
+    card.className='member-card';
+    card.innerHTML=`
+      <div class="mc-header">
+        <div class="mc-avatar">${m.emoji}</div>
+        <div><div class="mc-name">${m.name}</div><div class="mc-total">누적 Paid: <span style="color:var(--c5);font-weight:800">${totalPaid}</span></div></div>
+      </div>
+      <div class="mc-bars">
+        ${['mql','connected','demo','trial','paid'].map(s=>`
+          <div class="mc-bar-row">
+            <div class="mc-bar-label">${s.charAt(0).toUpperCase()+s.slice(1)}</div>
+            <div class="mc-bar-track"><div class="mc-bar-fill" style="--color:${COLORS[s]};width:${Math.min(mt[s]/mb*100,100)}%"></div></div>
+            <div class="mc-bar-val" style="--color:${COLORS[s]}">${mt[s]}</div>
+          </div>`).join('')}
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+// ── INIT ──
+currentMonth = new Date();
+document.getElementById('month-label').textContent = monthLabel(currentMonth);
+startSync();
+</script>
+</body>
+</html>
